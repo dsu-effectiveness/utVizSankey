@@ -4,12 +4,46 @@
 #'
 #' @param   data   Data-frame containing one row per observation (student).
 #' @param   steps   Character vector or list containing a subset of the column names in `data`.
-#' These correspond to the stages of the sankey chart. Where a list is provided, elements of the
-#' list can contain vectors which specify how a step will be further subdivided (drilled-down into)
-#' when that step is clicked on.
+#'   These correspond to the stages of the sankey chart. Where a list is provided, elements of the
+#'   list can contain vectors which specify how a step will be further subdivided (drilled-down
+#'   into) when that step is clicked on.
+#' @param   color   Character representing a single color. This color is used to color all nodes
+#'   that don't have an associated color override. Links emanating from these nodes will be a
+#'   translucent version of this color.
+#' @param   hover_color   Character representing a single color. This color is used to highlight a
+#'   node on hover. It is also used---in a translucent form---to highlight a link on hover.
+#' @param   color_overrides   If supplied, this should be a list of lists. Each of the inner lists
+#'   specifies some form of color override. To have any effect it must have a "color" entry and at
+#'   least one of a "name" entry and a "group" entry. The "name" entry corresponds to the name or
+#'   label of a node while the "group" entry corresponds to the name associated with the column in
+#'   the Sankey. This means the groups are derived from the keys in the supplied data while the
+#'   names are the values associated with these keys. An override assigned to a node through a
+#'   "name" entry trumps an override assigned through a "group" entry. An override assigned through
+#'   a "name" and a "group" entry in the same object will trump both of these.
+#' @param   node_template,link_template   Template strings defining the text presented the popups
+#'   that are shown when hovering over a node or a link. These use the
+#'   [Handlebars HTML templating language](https://handlebarsjs.com/). If supplied, these should be
+#'   a single character string. Alongside regular HTML constructs, the templates can reference the
+#'   following properties.
+#'
+#'   For \code{node_template}:
+#'   * \code{ {{name}} } the name of the node.
+#'   * \code{ {{count}} } the count of the node.
+#'   * \code{ {{totalCount}} } the total count for the whole Sankey diagram.
+#'
+#'   For \code{link_template}:
+#'   * \code{ {{sourceName}} } the name of the source node of the link.
+#'   * \code{ {{targetName}} } the name of the target node of the link.
+#'   * \code{ {{count}} } the count of the link.
+#'   * \code{ {{totalCount}} } the total count for the whole Sankey diagram.
+#'   * \code{ {{percentageOfSourceCount}} } the (rounded) percentage value of all counts from the
+#'     source node that go through this link.
+#'   * \code{ {{percentageOfTargetCount}} } the (rounded) percentage value of all counts to the
+#'     target node that go through this link.
+#'
 #' @param   alt_click_handler   A JavaScript function to be called when the user alt-clicks on a
-#' node in the Sankey chart. Construct this with \code{htmlwidgets::JS()}. The function should
-#' have parameters "event" and "data".
+#'   node in the Sankey chart. Construct this with \code{htmlwidgets::JS()}. The function should
+#'   have parameters "event" and "data".
 #' @param   width,height   The initial size of the visualization
 #' @param   elementId   Identifier for the HTML element into which the visualization will be added.
 #' @return   A html widget containing a Sankey diagram of the data
@@ -29,6 +63,11 @@
 #' @export
 sankey = function(data,
                   steps,
+                  color = NULL,
+                  hover_color = NULL,
+                  color_overrides = NULL,
+                  node_template = NULL,
+                  link_template = NULL,
                   alt_click_handler = NULL,
                   width = NULL,
                   height = NULL,
@@ -38,14 +77,35 @@ sankey = function(data,
     stop("steps should be unique and be a subset of colnames(data)")
   }
 
-  # forward options using x
   x = list(
-    data = data[used_steps],
+    data = data,
     steps = steps
   )
 
   if (!is.null(alt_click_handler)) {
     x$altClickHandler = alt_click_handler
+  }
+  if (!is.null(color)) {
+    x$color = gplots::col2hex(color)
+  }
+  if (!is.null(hover_color)) {
+    x$hoverColor = gplots::col2hex(hover_color)
+  }
+  if (!is.null(color_overrides)) {
+    x$colorOverrides = Map(
+      function(z) {
+        # z is a list(color = "...", name = "...", group = "...")
+        z$color = gplots::col2hex(z$color)
+        z
+      },
+      color_overrides
+    )
+  }
+  if (!is.null(node_template)) {
+    x$nodePopupTemplate = node_template
+  }
+  if (!is.null(link_template)) {
+    x$linkPopupTemplate = link_template
   }
 
   # Ensures that javascript receives a row-oriented view of 'data'
